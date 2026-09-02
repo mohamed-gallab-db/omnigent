@@ -148,6 +148,7 @@ interface NativeShellApi {
 }
 
 export type ThemeSource = "light" | "dark" | "system";
+export type NativeNotificationMode = "when-away" | "always";
 
 /** Footprints (CSS px) of the native floating bars, reported by the shell. */
 export interface NativeInsets {
@@ -179,6 +180,8 @@ interface ElectronDesktopApi extends NativeShellApi {
   kind: "electron";
   /** The runner picked during onboarding for this server, returned once. */
   takeOnboardingRunner?: () => Promise<"local" | "remote" | null>;
+  getNotificationMode?: () => Promise<NativeNotificationMode>;
+  onNotificationModeChanged?: (callback: (mode: NativeNotificationMode) => void) => () => void;
   /**
    * Desktop auto-update bridge — CONFIG ONLY on current shells. Update
    * notifications are shell-owned (native corner overlay + Server menu); this
@@ -627,6 +630,30 @@ export function isAndroidShell(): boolean {
  */
 export function isNativeShell(): boolean {
   return nativeApi() !== undefined;
+}
+
+export async function getNativeNotificationMode(): Promise<NativeNotificationMode> {
+  const getMode = electronApi()?.getNotificationMode;
+  if (!getMode) return "when-away";
+  try {
+    return (await getMode()) === "always" ? "always" : "when-away";
+  } catch (err) {
+    console.warn("[nativeBridge] getNotificationMode failed:", err);
+    return "when-away";
+  }
+}
+
+export function onNativeNotificationModeChanged(
+  callback: (mode: NativeNotificationMode) => void,
+): () => void {
+  const subscribe = electronApi()?.onNotificationModeChanged;
+  if (!subscribe) return () => {};
+  try {
+    return subscribe((mode) => callback(mode === "always" ? "always" : "when-away"));
+  } catch (err) {
+    console.warn("[nativeBridge] onNotificationModeChanged failed:", err);
+    return () => {};
+  }
 }
 
 export interface NativeNotifyParams {

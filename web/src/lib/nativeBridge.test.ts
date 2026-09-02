@@ -2,12 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   applyMacElectronShellAttribute,
+  getNativeNotificationMode,
   getServerPicker,
   isAndroidShell,
   isElectronShell,
   isIOSShell,
   isNativeShell,
   nativeNotify,
+  onNativeNotificationModeChanged,
   onNativeNotificationActivated,
   onNativeSidebarDrag,
   PRE_MANIFEST_BASELINE,
@@ -27,6 +29,11 @@ const electronNotify = vi.fn().mockResolvedValue(true);
 const electronUnsubscribe = vi.fn();
 const electronOnNotificationActivated = vi.fn().mockReturnValue(electronUnsubscribe);
 const electronSetColorScheme = vi.fn();
+const electronGetNotificationMode = vi.fn().mockResolvedValue("always");
+const electronNotificationModeUnsubscribe = vi.fn();
+const electronOnNotificationModeChanged = vi
+  .fn()
+  .mockReturnValue(electronNotificationModeUnsubscribe);
 
 // The iOS WKWebView bridge mock, installed on window.omnigentNative.
 const iosSetBadge = vi.fn();
@@ -64,6 +71,8 @@ function setElectron(on: boolean, withClickRouting = true, withBrowser = false):
       setBadgeCount: (...args: unknown[]) => electronSetBadge(...args),
       setColorScheme: (...args: unknown[]) => electronSetColorScheme(...args),
       notify: (...args: unknown[]) => electronNotify(...args),
+      getNotificationMode: () => electronGetNotificationMode(),
+      onNotificationModeChanged: (...args: unknown[]) => electronOnNotificationModeChanged(...args),
       ...(withClickRouting
         ? {
             onNotificationActivated: (...args: unknown[]) =>
@@ -227,6 +236,27 @@ describe("applyMacElectronShellAttribute", () => {
     setUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/148.0.0.0");
     applyMacElectronShellAttribute();
     expect(document.documentElement).not.toHaveAttribute("data-electron-mac");
+  });
+});
+
+describe("native notification mode", () => {
+  it("reads and subscribes to the Electron preference", async () => {
+    setElectron(true);
+    const callback = vi.fn();
+
+    await expect(getNativeNotificationMode()).resolves.toBe("always");
+    const unsubscribe = onNativeNotificationModeChanged(callback);
+
+    const forwarded = electronOnNotificationModeChanged.mock.calls[0][0];
+    forwarded("always");
+    expect(callback).toHaveBeenCalledWith("always");
+    expect(unsubscribe).toBe(electronNotificationModeUnsubscribe);
+  });
+
+  it("falls back to when-away outside a current Electron shell", async () => {
+    setElectron(false);
+    await expect(getNativeNotificationMode()).resolves.toBe("when-away");
+    expect(onNativeNotificationModeChanged(vi.fn())).toEqual(expect.any(Function));
   });
 });
 

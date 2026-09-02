@@ -186,6 +186,22 @@ function loadMainHarness({
         return true;
       },
     },
+    // Keep this plain-Node main-process harness independent of an installed
+    // Electron binary. OIDC credential behavior has its own focused tests.
+    "./oidc-credentials": {
+      signInWithBrowser: async () => ({ token: "test", expiresIn: null }),
+      refreshSession: async () => ({ token: "test", expiresIn: null }),
+      signOut: async () => {},
+      hasStoredGrant: () => false,
+      removeStoredGrant: () => false,
+    },
+    "./oidc-auth": {
+      createOidcAuth: () => ({
+        attach: async () => {},
+        detach: () => {},
+        isAttached: () => false,
+      }),
+    },
     "./omnigent_cli": {
       isExecutableFile: () => false,
       resolveCliPath: () => null,
@@ -296,6 +312,57 @@ function findMenuItem(menu, id) {
   }
   return null;
 }
+
+function findTopLevelMenu(menu, label) {
+  return menu.template.find((item) => item.label === label) ?? null;
+}
+
+describe("macOS Notifications menu", () => {
+  it("is available in packaged builds and exposes mode and sound controls", (t) => {
+    const harness = loadMainHarness({ isPackaged: true, platform: "darwin" });
+    t.after(harness.cleanup);
+
+    harness.api.buildMenu();
+    const menu = harness.calls.setApplicationMenu.at(-1);
+
+    assert.ok(findTopLevelMenu(menu, "Notifications"));
+    assert.ok(findMenuItem(menu, "notification_mode_when_away"));
+    assert.ok(findMenuItem(menu, "notification_mode_always"));
+    assert.ok(findMenuItem(menu, "notification_sound_enabled"));
+    assert.ok(findMenuItem(menu, "notification_sound_Glass"));
+  });
+
+  it("persists Always and broadcasts it to connected windows", (t) => {
+    const harness = loadMainHarness({ platform: "darwin" });
+    t.after(harness.cleanup);
+    harness.api.buildMenu();
+
+    findMenuItem(harness.calls.setApplicationMenu.at(-1), "notification_mode_always").click();
+
+    assert.equal(harness.readSettings().notification_mode, "always");
+    assert.deepEqual(harness.calls.sent.at(-1), {
+      channel: "omnigent:notification-mode-changed",
+      payload: "always",
+    });
+  });
+
+  it("restores a persisted Always and serves it only to pinned senders", (t) => {
+    const harness = loadMainHarness({
+      platform: "darwin",
+      settings: { notification_mode: "always" },
+    });
+    t.after(harness.cleanup);
+    harness.api.buildMenu();
+    harness.api.registerIpc();
+    const menu = harness.calls.setApplicationMenu.at(-1);
+
+    assert.equal(findMenuItem(menu, "notification_mode_always").checked, true);
+    assert.equal(findMenuItem(menu, "notification_mode_when_away").checked, false);
+    const handler = harness.ipcHandlers.get("omnigent:get-notification-mode");
+    assert.equal(handler(harness.events.pinned), "always");
+    assert.equal(handler(harness.events.unpinned), "when-away");
+  });
+});
 
 function hasDebugMenu(menu) {
   return menu.template.some((item) => item.label === "Debug");
