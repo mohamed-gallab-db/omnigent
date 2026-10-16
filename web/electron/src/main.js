@@ -3201,7 +3201,7 @@ function signalForeground() {
 // suppressed by macOS, so to make the alert audible in BOTH the foreground and
 // the background we play a system sound ourselves with `afplay` and mute the
 // toast's built-in sound (see the notify handler). The chosen sound and the
-// on/off switch live in the native Notifications menu, persisted in settings
+// on/off switch live in Settings → Notifications, persisted in settings
 // (`notification_sound_enabled`, `notification_sound_name`).
 // ---------------------------------------------------------------------------
 
@@ -3248,7 +3248,7 @@ function systemSoundNames() {
 
 /**
  * Whether the notification sound is enabled. Opt-in: OFF unless the user has
- * explicitly turned it on via the Notifications menu, so a fresh install stays
+ * explicitly turned it on in Settings → Notifications, so a fresh install stays
  * silent until the user asks for sound.
  */
 function notificationSoundEnabled() {
@@ -3293,7 +3293,7 @@ function currentNotificationSoundName() {
 /**
  * Play a macOS system sound by name via `afplay`, fire-and-forget. No-op off
  * macOS (afplay is macOS-only). Used both for live notifications and for the
- * menu's pick-to-preview.
+ * explicit sound preview.
  *
  * @param {string} name A name from `systemSoundNames()`, e.g. `"Glass"`.
  */
@@ -3511,55 +3511,6 @@ function buildMenu() {
       { role: "togglefullscreen" },
     ],
   });
-  if (isMac) {
-    const soundChoices = systemSoundNames().map((name) => ({
-      id: `notification_sound_${name}`,
-      label: name,
-      type: "radio",
-      checked: currentNotificationSoundName() === name,
-      click: () => {
-        const settings = loadSettings();
-        settings.notification_sound_name = name;
-        saveSettings(settings);
-        // Pick-to-preview: play the choice immediately even when notification
-        // sounds are currently disabled.
-        playSystemSound(name);
-      },
-    }));
-    template.push({
-      label: "Notifications",
-      submenu: [
-        {
-          id: "notification_mode_when_away",
-          label: "When Away from Conversation",
-          type: "radio",
-          checked: currentNotificationMode() === "when-away",
-          click: () => setNotificationMode("when-away"),
-        },
-        {
-          id: "notification_mode_always",
-          label: "Always (Even When Focused)",
-          type: "radio",
-          checked: currentNotificationMode() === "always",
-          click: () => setNotificationMode("always"),
-        },
-        { type: "separator" },
-        {
-          id: "notification_sound_enabled",
-          label: "Play Notification Sound",
-          type: "checkbox",
-          checked: notificationSoundEnabled(),
-          click: (item) => {
-            const settings = loadSettings();
-            settings.notification_sound_enabled = item.checked;
-            saveSettings(settings);
-          },
-        },
-        { label: "Sound", submenu: soundChoices },
-      ],
-    });
-  }
-
   // Keep app-specific menus before the platform Window menu.
   template.push({ role: "windowMenu" });
   if (!isMac) {
@@ -3968,6 +3919,52 @@ function registerIpc() {
   ipcMain.handle("omnigent:get-notification-mode", (event) => {
     if (!isPinnedOriginSender(event)) return "when-away";
     return currentNotificationMode();
+  });
+  const notificationSettings = () => ({
+    mode: currentNotificationMode(),
+    soundEnabled: notificationSoundEnabled(),
+    soundName: currentNotificationSoundName(),
+    sounds: systemSoundNames(),
+  });
+  const requireNotificationSettingsSender = (event) => {
+    if (!isPinnedOriginSender(event) || process.platform !== "darwin") {
+      throw new Error("Notification settings require a connected macOS window");
+    }
+  };
+  ipcMain.handle("omnigent:get-notification-settings", (event) => {
+    if (!isPinnedOriginSender(event) || process.platform !== "darwin") return null;
+    return notificationSettings();
+  });
+  ipcMain.handle("omnigent:set-notification-settings", (event, patch) => {
+    requireNotificationSettingsSender(event);
+    if (
+      !patch ||
+      typeof patch !== "object" ||
+      (patch.mode !== undefined && !["always", "when-away"].includes(patch.mode)) ||
+      (patch.soundEnabled !== undefined && typeof patch.soundEnabled !== "boolean") ||
+      (patch.soundName !== undefined && !systemSoundNames().includes(patch.soundName))
+    ) {
+      throw new Error("Invalid notification settings");
+    }
+    const settings = loadSettings();
+    if (patch.soundEnabled !== undefined) settings.notification_sound_enabled = patch.soundEnabled;
+    if (patch.soundName !== undefined) settings.notification_sound_name = patch.soundName;
+    saveSettings(settings);
+    // Broadcast after all fields are saved so other windows can refresh together.
+    setNotificationMode(patch.mode ?? currentNotificationMode());
+    return notificationSettings();
+  });
+  ipcMain.handle("omnigent:preview-notification-sound", (event, name) => {
+    requireNotificationSettingsSender(event);
+    if (!systemSoundNames().includes(name)) throw new Error("Unknown notification sound");
+    // An explicit preview works even when notification sounds are disabled.
+    playSystemSound(name);
+  });
+  ipcMain.handle("omnigent:open-notification-settings", (event) => {
+    requireNotificationSettingsSender(event);
+    return shell.openExternal(
+      "x-apple.systempreferences:com.apple.Notifications-Settings.extension",
+    );
   });
   // Setup page → persist URL and navigate the SENDING window to it. We target
   // the window that owns the setup page (via its webContents) rather than a

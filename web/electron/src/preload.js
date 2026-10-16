@@ -66,6 +66,12 @@ contextBridge.exposeInMainWorld("omnigentDesktop", {
       navigatePath: params?.navigatePath,
     }),
   getNotificationMode: () => ipcRenderer.invoke("omnigent:get-notification-mode"),
+  getNotificationSettings: () => ipcRenderer.invoke("omnigent:get-notification-settings"),
+  setNotificationSettings: (settings) =>
+    ipcRenderer.invoke("omnigent:set-notification-settings", settings),
+  previewNotificationSound: (name) =>
+    ipcRenderer.invoke("omnigent:preview-notification-sound", name),
+  openNotificationSettings: () => ipcRenderer.invoke("omnigent:open-notification-settings"),
   onNotificationModeChanged: (callback) => {
     const listener = (_event, mode) => callback(mode === "always" ? "always" : "when-away");
     ipcRenderer.on("omnigent:notification-mode-changed", listener);

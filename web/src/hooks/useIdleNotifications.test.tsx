@@ -454,7 +454,7 @@ describe("useIdleNotifications active-view suppression", () => {
     expect(showMock.mock.calls[0][0]).toMatchObject({ title: "b" });
   });
 
-  it("applies a menu change made after the startup read", async () => {
+  it("applies a preference change made after the startup read", async () => {
     setWindowFocused(true);
     isNativeMock.mockReturnValue(true);
     getNativeNotificationModeMock.mockResolvedValue("always");

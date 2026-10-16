@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   applyMacElectronShellAttribute,
   getNativeNotificationMode,
+  getNativeNotificationSettings,
+  setNativeNotificationSettings,
   getServerPicker,
   isAndroidShell,
   isElectronShell,
@@ -240,6 +242,13 @@ describe("applyMacElectronShellAttribute", () => {
 });
 
 describe("native notification mode", () => {
+  it("reports unavailable settings on old shells and preserves save failures", async () => {
+    setElectron(true);
+    await expect(getNativeNotificationSettings()).resolves.toBeNull();
+    await expect(setNativeNotificationSettings({ mode: "always" })).rejects.toThrow(
+      /Update the desktop app/,
+    );
+  });
   it("reads and subscribes to the Electron preference", async () => {
     setElectron(true);
     const callback = vi.fn();

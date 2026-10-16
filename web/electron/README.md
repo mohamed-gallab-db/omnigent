@@ -9,19 +9,18 @@ adds native niceties:
   new elicitation (asks for input), or a runner disconnects (`online` →
   `offline`). By default, a notification fires for any such event **except**
   the conversation you're actively viewing. On macOS, choose
-  **Notifications → Always (Even When Focused)** to notify for that active
+  **Settings → Notifications → Always** to notify for that active
   conversation too. Sessions already settled at launch don't fire; only fresh
   transitions this client observes do. On a turn-end the notification body
   shows the **first few lines of the agent's final message** when they can be
   fetched (one best-effort `GET /items` call), falling back to a generic
   "Agent finished and is ready for your input." On macOS each notification can
-  also **play a sound** — a system sound you pick in the **Notifications** menu
+  also **play a sound** — a system sound you pick in the **Settings → Notifications** page
   (see below). It's **off by default (opt-in)**: a fresh install stays silent
   until you turn it on, so the sound never surprises you.
-  **Compatibility:** Always mode requires the connected server's web bundle to
-  include native notification-mode support. With an older bundle the desktop
-  setting is still saved and shown as selected, but the active conversation
-  retains that bundle's existing suppression behavior.
+  **Compatibility:** These controls require an updated macOS desktop app and
+  connected server web bundle. Older server bundles retain their existing
+  focused-conversation suppression. Existing notification preferences are preserved.
 - **A foreground attention cue.** Electron requests foreground presentation on
   macOS, so a native banner can appear while Omnigent is frontmost. The shell
   supplements notifications by **bouncing the macOS dock icon** (or flashing
@@ -60,12 +59,12 @@ adds native niceties:
   `Assets.car`/Liquid Glass appearance rather than the development PNG. Our other custom actions
   — **New Window**, **New Window on Different Server…**, and
   **Change Server…** — live in a dedicated **Server** submenu. On macOS a
-  **Notifications** submenu selects **When Away from Conversation** (the
-  default) or **Always (Even When Focused)**, turns sound on/off (**Play
-  Notification Sound**, **off by default**), and picks which
-  macOS system sound to play (**Sound ▸** — Glass, Ping, Hero, …); choosing one
-  previews it, and the choice persists in `settings.json` and applies to the
-  next notification.
+  **Settings → Notifications** page controls when to notify, enables sound
+  (off by default), and selects a macOS system sound. **Preview sound** plays
+  the selection even when sounds are disabled. **Send test notification** checks
+  native delivery, and **Open macOS notification settings** opens the system
+  settings for choosing banners or alerts. Preferences persist on this Mac and
+  apply to all its windows.
 - **Browser-style file drag-and-drop** works out of the box: Electron does
   not intercept file drops the way Tauri does by default, so dropping an
   image onto a text field reaches the web app's HTML5 drop handler with no

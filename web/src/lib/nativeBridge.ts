@@ -181,6 +181,12 @@ interface ElectronDesktopApi extends NativeShellApi {
   /** The runner picked during onboarding for this server, returned once. */
   takeOnboardingRunner?: () => Promise<"local" | "remote" | null>;
   getNotificationMode?: () => Promise<NativeNotificationMode>;
+  getNotificationSettings?: () => Promise<NativeNotificationSettings | null>;
+  setNotificationSettings?: (
+    settings: Partial<NativeNotificationSettings>,
+  ) => Promise<NativeNotificationSettings>;
+  previewNotificationSound?: (name: string) => Promise<void>;
+  openNotificationSettings?: () => Promise<void>;
   onNotificationModeChanged?: (callback: (mode: NativeNotificationMode) => void) => () => void;
   /**
    * Desktop auto-update bridge — CONFIG ONLY on current shells. Update
@@ -641,6 +647,33 @@ export async function getNativeNotificationMode(): Promise<NativeNotificationMod
     console.warn("[nativeBridge] getNotificationMode failed:", err);
     return "when-away";
   }
+}
+
+export interface NativeNotificationSettings {
+  mode: NativeNotificationMode;
+  soundEnabled: boolean;
+  soundName: string;
+  sounds: string[];
+}
+
+export async function getNativeNotificationSettings(): Promise<NativeNotificationSettings | null> {
+  return electronApi()?.getNotificationSettings?.() ?? null;
+}
+
+export async function setNativeNotificationSettings(
+  settings: Partial<NativeNotificationSettings>,
+): Promise<NativeNotificationSettings> {
+  const save = electronApi()?.setNotificationSettings;
+  if (!save) throw new Error("Update the desktop app to change notification settings.");
+  return save(settings);
+}
+
+export async function previewNativeNotificationSound(name: string): Promise<void> {
+  await electronApi()?.previewNotificationSound?.(name);
+}
+
+export async function openNativeNotificationSettings(): Promise<void> {
+  await electronApi()?.openNotificationSettings?.();
 }
 
 export function onNativeNotificationModeChanged(
